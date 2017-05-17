@@ -34,7 +34,7 @@ module Puppet::Util::SELinux
 
   # Retrieve and return the default context of the file.  If we don't have
   # SELinux support or if the SELinux call fails to file a default then return nil.
-  def get_selinux_default_context(file)
+  def get_selinux_default_context(file, type)
     return nil unless selinux_support?
     # If the filesystem has no support for SELinux labels, return a default of nil
     # instead of what matchpathcon would return
@@ -45,7 +45,18 @@ module Puppet::Util::SELinux
       filestat = file_lstat(file)
       mode = filestat.mode
     rescue Errno::EACCES, Errno::ENOENT
-      mode = 0
+      # Figure out the mode we should pass to matchpathcon based on
+      # the ensure property
+      case type
+        when :present, :file
+          mode = 0100000 # S_IFREG
+        when :link
+          mode = 0120000 # S_IFLNK
+        when :directory
+          mode = 0040000 # S_IFDIR
+        else
+          mode = 0
+      end
     end
 
     retval = Selinux.matchpathcon(file, mode)
